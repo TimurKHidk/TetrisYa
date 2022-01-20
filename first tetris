@@ -2,9 +2,13 @@ import pygame
 import random
 
 pygame.font.init()
+pygame.mixer.init()
 
-s_width = 800
-s_height = 700
+pygame.mixer.music.load('Tetris_theme.ogg')
+pygame.mixer.music.play(100)
+
+s_width = 750
+s_height = 600
 play_width = 300
 play_height = 600
 block_size = 30
@@ -221,11 +225,12 @@ def clear_rows(grid, locked):
             if y < ind:
                 newKey = (x, y + inc)
                 locked[newKey] = locked.pop(key)
+    return inc
 
 
 def draw_next_shape(shape, surface):
     font = pygame.font.SysFont('arial', 40)
-    label = font.render('Next Shape', 10, (0, 0, 0))
+    label = font.render('Next Shape:', 10, (0, 0, 0))
 
     sx = top_left_x + play_width + 30
     sy = top_left_y + play_height / 2 - 100
@@ -241,8 +246,40 @@ def draw_next_shape(shape, surface):
     surface.blit(label, (sx + 10, sy - 40))
 
 
-def draw_window(surface):
+def last_score():
+    with open('highscores.txt', 'r') as file:
+        lines = file.readlines()
+        score = lines[0].strip()
+    return score
+
+
+def update_score(newscore):
+    score = last_score()
+    with open('highscores.txt', 'w') as file:
+        if int(score) > newscore:
+            file.write(str(score))
+        else:
+            file.write(str(newscore))
+
+
+def draw_window(surface, grid, score=0, high_score=0):
     surface.fill((255, 255, 255))
+
+    font = pygame.font.SysFont('arial', 40)
+    label = font.render('Score: ' + str(score), 1, (0, 0, 0))
+
+    sx = top_left_x + play_width + 50
+    sy = top_left_y + play_height / 2 - 400
+
+    surface.blit(label, (sx - 560, sy + 160))
+
+    font = pygame.font.SysFont('arial', 35)
+    label = font.render('High Score: ' + str(high_score), 1, (0, 0, 0))
+
+    sx = top_left_x - 200
+    sy = top_left_y + 200
+
+    surface.blit(label, (sx - 25, sy - 200))
 
     for i in range(len(grid)):
         for j in range(len(grid[i])):
@@ -253,7 +290,7 @@ def draw_window(surface):
 
 
 def main():
-    global grid
+    high_score = last_score()
     locked_positions = {}
     grid = create_grid(locked_positions)
 
@@ -263,15 +300,15 @@ def main():
     next_piece = get_shape()
     clock = pygame.time.Clock()
     fall_time = 0
+    score = 0
 
     while run:
         fall_speed = 0.30
-
         grid = create_grid(locked_positions)
         fall_time += clock.get_rawtime()
         clock.tick()
 
-        if fall_time / 1000 >= fall_speed:
+        if fall_time / 800 >= fall_speed:
             fall_time = 0
             current_piece.y += 1
             if not (valid_space(current_piece, grid)) and current_piece.y > 0:
@@ -324,10 +361,9 @@ def main():
             current_piece = next_piece
             next_piece = get_shape()
             change_piece = False
+            score += clear_rows(grid, locked_positions) * 100
 
-            clear_rows(grid, locked_positions)
-
-        draw_window(win)
+        draw_window(win, grid, score, high_score)
         draw_next_shape(next_piece, win)
         pygame.display.update()
 
@@ -338,8 +374,8 @@ def main():
     draw_text_middle("You Lose", 100, (0, 0, 0), win)
     pygame.display.update()
     pygame.time.delay(2000)
-    # font = pygame.font.SysFont('Calibri', 25, True, False)
-    # text = font.render("Score: " + str(game.score), True, BLACK)
+    run = False
+    update_score(score)
 
 
 def main_menu():
