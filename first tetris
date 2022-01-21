@@ -1,21 +1,26 @@
 import pygame
 import random
 
-pygame.font.init()
+#Инициализация всех функций
 pygame.mixer.init()
+pygame.font.init()
+pygame.init()
 
-pygame.mixer.music.load('Tetris_theme.ogg')
-pygame.mixer.music.play(100)
-
+#Игровые звуки
+sound1 = pygame.mixer.Sound('button.ogg')
+sound2 = pygame.mixer.Sound('start.ogg')
+sound3 = pygame.mixer.Sound('pause.ogg')
+sound4 = pygame.mixer.Sound('losegame.ogg')
+#Размеры поверхности , игрового поля и кубов      
 s_width = 750
 s_height = 600
 play_width = 300
 play_height = 600
 block_size = 30
-
+#Размеры экрана
 top_left_x = (s_width - play_width) // 2
 top_left_y = s_height - play_height
-
+#Фигуры(0 это  пустое пространство)
 S = [['.....',
       '.....',
       '..00.',
@@ -117,25 +122,32 @@ T = [['.....',
       '.00..',
       '..0..',
       '.....']]
-
+#Одна переменная для всех фигур, а так же цвета фигур
 shapes = [S, Z, I, O, J, L, T]
-shape_colors = [(0, 255, 0), (255, 0, 0), (0, 255, 255), (255, 255, 0), (255, 165, 0), (0, 0, 255), (128, 0, 128)]
+shape_colors = [(0, 255, 0), (255, 0, 0), (0, 255, 255), (255, 130, 100), (255, 165, 0), (0, 0, 255), (128, 0, 128)]
+#Класс для фонового изображения
+class Background(pygame.sprite.Sprite):
+    def __init__(self, image_file, location):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.image.load(image_file)
+        self.rect = self.image.get_rect()
+        self.rect.left, self.rect.top = location
 
-
-class Piece(object):
-    rows = 20
-    columns = 10
+#Основной класс
+class Tetris(object):
+    rows = 20#ряды
+    columns = 10#колонны
 
     def __init__(self, column, row, shape):
         self.x = column
         self.y = row
         self.shape = shape
         self.color = shape_colors[shapes.index(shape)]
-        self.rotation = 0
+        self.rotation = 0#Смена позиции фигуры
 
-
+#Создание сетки
 def create_grid(locked_positions={}):
-    grid = [[(255, 255, 255) for x in range(10)] for x in range(20)]
+    grid = [[(255, 255, 255) for _ in range(10)] for _ in range(20)]
 
     for i in range(len(grid)):
         for j in range(len(grid[i])):
@@ -144,7 +156,7 @@ def create_grid(locked_positions={}):
                 grid[i][j] = c
     return grid
 
-
+#Превращает фигуры в понятную для компьютера форму
 def convert_shape_format(shape):
     positions = []
     format = shape.shape[shape.rotation % len(shape.shape)]
@@ -160,7 +172,7 @@ def convert_shape_format(shape):
 
     return positions
 
-
+#Проверка свободного пространства
 def valid_space(shape, grid):
     accepted_positions = [[(j, i) for j in range(10) if grid[i][j] == (255, 255, 255)] for i in range(20)]
     accepted_positions = [j for sub in accepted_positions for j in sub]
@@ -173,21 +185,29 @@ def valid_space(shape, grid):
 
     return True
 
-
-def check_lost(positions):
+#Проверка на фигуры за пределами игры
+def lost(positions):
     for pos in positions:
         x, y = pos
         if y < 1:
             return True
     return False
 
-
+#Рандомайзер фигур
 def get_shape():
     global shapes, shape_colors
 
-    return Piece(5, 0, random.choice(shapes))
+    return Tetris(5, 0, random.choice(shapes))
 
+#Написание текста ниже
+def draw_text_lower(text, size, color, surface):
+    font = pygame.font.SysFont('arial', size, bold=True)
+    label = font.render(text, 1, color)
 
+    surface.blit(label, (
+        top_left_x + play_width / 2 - (label.get_width() / 2), top_left_y + play_height / 1.5 - label.get_height() / 1.5))
+
+#Написание текста по середине
 def draw_text_middle(text, size, color, surface):
     font = pygame.font.SysFont('arial', size, bold=True)
     label = font.render(text, 1, color)
@@ -195,44 +215,52 @@ def draw_text_middle(text, size, color, surface):
     surface.blit(label, (
         top_left_x + play_width / 2 - (label.get_width() / 2), top_left_y + play_height / 2 - label.get_height() / 2))
 
+#Написание текста сверху
+def draw_text_upper(text, size, color, surface):
+    font = pygame.font.SysFont('arial', size, bold=True)
+    label = font.render(text, 1, color)
 
+    surface.blit(label, (
+        top_left_x + play_width / 4 - (label.get_width() / 4), top_left_y + play_height / 5.5 - label.get_height() / 5.5))
+
+#Визуализация сетки
 def draw_grid(surface, row, col):
     sx = top_left_x
     sy = top_left_y
     for i in range(row):
-        pygame.draw.line(surface, (125, 125, 125), (sx, sy + i * 30),
+        pygame.draw.line(surface, (0, 0, 0), (sx, sy + i * 30),
                          (sx + play_width, sy + i * 30))
         for j in range(col):
-            pygame.draw.line(surface, (125, 125, 125), (sx + j * 30, sy),
+            pygame.draw.line(surface, (0, 0, 0), (sx + j * 30, sy),
                              (sx + j * 30, sy + play_height))
 
-
+#Проверка на заполненную строку и в следствие ее удаление
 def clear_rows(grid, locked):
-    inc = 0
+    c_row = 0
     for i in range(len(grid) - 1, -1, -1):
         row = grid[i]
         if (255, 255, 255) not in row:
-            inc += 1
+            c_row += 1
             ind = i
             for j in range(len(row)):
                 try:
                     del locked[(j, i)]
                 except:
                     continue
-    if inc > 0:
+    if c_row > 0:
         for key in sorted(list(locked), key=lambda x: x[1])[::-1]:
             x, y = key
             if y < ind:
-                newKey = (x, y + inc)
+                newKey = (x, y + c_row)
                 locked[newKey] = locked.pop(key)
-    return inc
+    return c_row
 
-
+# Создание надписи "следующая фигура" и сама фигура 
 def draw_next_shape(shape, surface):
     font = pygame.font.SysFont('arial', 40)
-    label = font.render('Next Shape:', 10, (0, 0, 0))
-
-    sx = top_left_x + play_width + 30
+    label = font.render('Next Shape:', 10, (254,255,1))
+    pygame.draw.rect(surface, (255, 0, 0), (530, 150, 220, 200), 3)
+    sx = top_left_x + play_width + 5
     sy = top_left_y + play_height / 2 - 100
     format = shape.shape[shape.rotation % len(shape.shape)]
 
@@ -241,18 +269,18 @@ def draw_next_shape(shape, surface):
         for j, column in enumerate(row):
             if column == '0':
                 pygame.draw.rect(surface, shape.color,
-                                 (sx + j * block_size, sy + i * block_size, block_size, block_size), 0)
+                                 (sx + j * 35, sy + i * 35, 35, 35), 0)
+    
+    surface.blit(label, (sx + 5, sy - 40))
 
-    surface.blit(label, (sx + 10, sy - 40))
-
-
+#Последний счет игрока
 def last_score():
     with open('highscores.txt', 'r') as file:
         lines = file.readlines()
         score = lines[0].strip()
     return score
 
-
+#Обновление счета  
 def update_score(newscore):
     score = last_score()
     with open('highscores.txt', 'w') as file:
@@ -261,20 +289,40 @@ def update_score(newscore):
         else:
             file.write(str(newscore))
 
-
+#Визуализация экрана(все надписи, сетка, рамки)
 def draw_window(surface, grid, score=0, high_score=0):
+    BackGround = Background('fonmegax.jpg', [0, -10])
     surface.fill((255, 255, 255))
+    surface.blit(BackGround.image, BackGround.rect)
 
     font = pygame.font.SysFont('arial', 40)
-    label = font.render('Score: ' + str(score), 1, (0, 0, 0))
+    label = font.render('Unpause - C', 1, (254, 255, 1))
 
     sx = top_left_x + play_width + 50
     sy = top_left_y + play_height / 2 - 400
 
-    surface.blit(label, (sx - 560, sy + 160))
+    surface.blit(label, (sx - 577, sy + 240))
+
+    font = pygame.font.SysFont('arial', 40)
+    label = font.render('Pause - P', 1, (254, 255, 1))
+
+    sx = top_left_x + play_width + 50
+    sy = top_left_y + play_height / 2 - 400
+
+    surface.blit(label, (sx - 577, sy + 200))
+    pygame.draw.rect(surface, (255, 0, 0), (0, 5, 210, 180), 3)
+
+    font = pygame.font.SysFont('arial', 40)
+    label = font.render('Score: ' + str(score), 1, (254,255,1))
+
+    sx = top_left_x + play_width + 50
+    sy = top_left_y + play_height / 2 - 400
+
+    surface.blit(label, (sx - 577, sy + 160))
 
     font = pygame.font.SysFont('arial', 35)
-    label = font.render('High Score: ' + str(high_score), 1, (0, 0, 0))
+    label = font.render('High Score: ' + str(high_score), 1, (254,255,1))
+    pygame.draw.rect(surface, (255, 0, 0), (0, 5, 210, 100), 3)
 
     sx = top_left_x - 200
     sy = top_left_y + 200
@@ -288,7 +336,7 @@ def draw_window(surface, grid, score=0, high_score=0):
     draw_grid(surface, 20, 10)
     pygame.draw.rect(surface, (0, 0, 0), (top_left_x, top_left_y, play_width, play_height), 4)
 
-
+#Главная функция(усложнение игры,падение фигур и их скорость,подсчет счета,кнопки для движения и тд)
 def main():
     high_score = last_score()
     locked_positions = {}
@@ -299,61 +347,87 @@ def main():
     current_piece = get_shape()
     next_piece = get_shape()
     clock = pygame.time.Clock()
+    level_time = 0
     fall_time = 0
+    fall_speed = 0.30
     score = 0
 
     while run:
-        fall_speed = 0.30
+        pause = False
         grid = create_grid(locked_positions)
         fall_time += clock.get_rawtime()
+        level_time += clock.get_rawtime()
         clock.tick()
-
+        #Нарастание сложности
+        if level_time / 1000 > 5:
+            level_time = 0
+            if level_time > 0.15:
+                fall_speed += 0.25
+        #Падение фигур
         if fall_time / 800 >= fall_speed:
             fall_time = 0
             current_piece.y += 1
             if not (valid_space(current_piece, grid)) and current_piece.y > 0:
                 current_piece.y -= 1
                 change_piece = True
-
+        #Пауза и клавиши поворота фигур
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
                 pygame.display.quit()
                 quit()
+            
+            if event.type == pygame.KEYUP:
+                if event.key == pygame.K_p:
+                    pause = True
+                    pygame.mixer.music.stop()
 
-            if event.type == pygame.KEYDOWN:
+            if event.type == pygame.KEYDOWN:                     
                 if event.key == pygame.K_LEFT:
+                    sound1.play()
                     current_piece.x -= 1
-                    if not valid_space(current_piece, grid):
-                        current_piece.x += 1
+                if not valid_space(current_piece, grid):
+                    current_piece.x += 1
 
                 elif event.key == pygame.K_RIGHT:
+                    sound1.play()
                     current_piece.x += 1
                     if not valid_space(current_piece, grid):
                         current_piece.x -= 1
                 elif event.key == pygame.K_UP:
+                    sound1.play()
                     current_piece.rotation = current_piece.rotation + 1 % len(current_piece.shape)
                     if not valid_space(current_piece, grid):
                         current_piece.rotation = current_piece.rotation - 1 % len(current_piece.shape)
 
                 if event.key == pygame.K_DOWN:
+                    sound1.play()
                     current_piece.y += 1
                     if not valid_space(current_piece, grid):
                         current_piece.y -= 1
 
                 if event.key == pygame.K_SPACE:
+                    sound3.play()
                     while valid_space(current_piece, grid):
                         current_piece.y += 1
                     current_piece.y -= 1
                     print(convert_shape_format(current_piece))
-
+        
+        while pause == True:
+            for event in pygame.event.get():
+                if event.type == pygame.KEYUP:
+                    if event.key == pygame.K_c:
+                        pygame.mixer.music.play()
+                        pause = False
+                                
+        #Переменная для конвертирования фигур                        
         shape_pos = convert_shape_format(current_piece)
-
+        #Добавление цвета фигур к сетке
         for i in range(len(shape_pos)):
             x, y = shape_pos[i]
             if y > -1:
                 grid[y][x] = current_piece.color
-
+        #Падение фигуры на поле
         if change_piece:
             for pos in shape_pos:
                 p = (pos[0], pos[1])
@@ -362,37 +436,49 @@ def main():
             next_piece = get_shape()
             change_piece = False
             score += clear_rows(grid, locked_positions) * 100
+        
 
-        draw_window(win, grid, score, high_score)
-        draw_next_shape(next_piece, win)
+        draw_window(surface, grid, score, high_score)
+        draw_next_shape(next_piece, surface)
         pygame.display.update()
-
-        if check_lost(locked_positions):
+        #Поражение
+        if lost(locked_positions):
             run = False
-
-    win.fill((255, 255, 255))
-    draw_text_middle("You Lose", 100, (0, 0, 0), win)
+    BackGround = Background('fonmegax.jpg', [0, -10])
+    surface.fill((255, 255, 255))
+    surface.blit(BackGround.image, BackGround.rect)
+    draw_text_middle("YOU LOSE", 100, (254,255,1), surface)
+    sound4.play()
+    pygame.mixer.music.stop()
     pygame.display.update()
-    pygame.time.delay(2000)
+    pygame.time.delay(30000)
     run = False
     update_score(score)
-
-
+    
+#Главное меню(надписи и старт с пробела)
 def main_menu():
     run = True
+    sound2.play()
     while run:
-        win.fill((255, 255, 255))
-        draw_text_middle('Press any key to start', 60, (0, 0, 0), win)
+        pygame.mixer.music.load('Tetris_theme.ogg')#Муз тема игры
+        pygame.mixer.music.play(100)
+        pygame.mixer.music.set_volume(0.5)
+        BackGround = Background('fonmegax.jpg', [0, -10])
+        surface.fill((255, 255, 255))
+        surface.blit(BackGround.image, BackGround.rect)
+        draw_text_upper('TETRIS', 100, (254,255,1), surface)
+        draw_text_middle('Press space to start', 60, (254, 255, 0), surface)
+        draw_text_lower('(USE THE ARROW KEYS TO MOVE THE SHAPES)', 30, (254, 255, 0), surface)
         pygame.display.update()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
-
             if event.type == pygame.KEYDOWN:
-                main()
+                if event.key == pygame.K_SPACE:
+                    main()
     pygame.quit()
 
-
-win = pygame.display.set_mode((s_width, s_height))
+#Игровая поверхность
+surface = pygame.display.set_mode((s_width, s_height))
 pygame.display.set_caption('Tetris')
 main_menu()
